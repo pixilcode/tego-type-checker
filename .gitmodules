@@ -1,0 +1,3 @@
+[submodule "tego-lang"]
+	path = tego-lang
+	url = git@github.com:pixilcode/tego-lang.git
