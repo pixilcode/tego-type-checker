@@ -22,13 +22,13 @@ Inductive is_subtype : type -> type -> Prop :=
 | TST_union_right : forall t t1 t2,
   t <: t2 ->
 	t <: (T_Union t1 t2)
-| TST_union_union : forall t1 t2 t3 t4,
-  t1 <: (T_Union t3 t4) ->
-  t2 <: (T_Union t3 t4) ->
-	(T_Union t1 t2) <: (T_Union t3 t4)
-| TST_union_factor : forall t1 t2 t3 t4,
-  (T_Union t1 t2) <: (T_Union t3 t4) ->
-  t1 <: (T_Union t3 t4)
+| TST_union_union : forall t1 t2 t,
+  t1 <: t ->
+  t2 <: t ->
+  (T_Union t1 t2) <: t
+| TST_union_factor : forall t1 t2 t,
+  (T_Union t1 t2) <: t ->
+  t1 <: t
 | TST_union_assoc : forall t1 t2 t, (* added this later when I couldn't derive it *)
   (T_Union t1 t2) <: t ->
   (T_Union t2 t1) <: t
@@ -38,8 +38,26 @@ Inductive is_subtype : type -> type -> Prop :=
 	(T_Function t1 t2) <: (T_Function t3 t4)
 where " t '<:' t' " := (is_subtype t t').
 
-(* can TST_union_both be derived? *)
+(* can TST_union_union be derived? *)
 (* does assoc need to be given? *)
+
+Theorem TST_union_union' : forall t1 t2 t3 t4,
+  t1 <: (T_Union t3 t4) ->
+  t2 <: (T_Union t3 t4) ->
+	(T_Union t1 t2) <: (T_Union t3 t4).
+Proof.
+  intros.
+  apply TST_union_union; assumption.
+Qed.
+
+Theorem TST_union_factor' : forall t1 t2 t3 t4,
+  (T_Union t1 t2) <: (T_Union t3 t4) ->
+  t1 <: (T_Union t3 t4).
+Proof.
+  intros.
+  eapply TST_union_factor.
+  apply H.
+Qed.
 
 Theorem TST_function_return : forall t t1 t2,
 	t1 <: t2 ->
@@ -78,7 +96,7 @@ Theorem TST_union_either : forall t t1 t2,
   t <: (T_Union t1 t2) ->
   t <: t1 \/ t <: t2.
 Proof.
-Abort.
+Admitted.
 
 (* factoring (failed) *)
 Theorem is_subtype_union__union_left : forall t1 t2 t3 t4,
@@ -112,6 +130,45 @@ Proof.
 
 Abort.
 
+Theorem TST_merge : forall t1 t2 t,
+  t1 <: t ->
+  t2 <: t ->
+  T_Union t1 t2 <: t.
+Proof.
+  intros.
+  generalize dependent t2.
+  induction H; intros.
+  - apply TST_union_union.
+    + constructor.
+    + assumption.
+  - apply TST_union_union.
+    + apply TST_union_left.
+      apply TST_union_factor with t.
+      apply IHis_subtype.
+      apply H.
+    + assumption.
+  - apply TST_union_union.
+    + apply TST_union_right.
+      apply TST_union_factor with t.
+      apply IHis_subtype.
+      apply H.
+    + assumption.
+  - apply TST_union_union.
+    + apply TST_union_union; assumption.
+    + assumption.
+  - apply TST_union_union.
+    + eapply TST_union_factor.
+      apply H.
+    + assumption.
+  - apply TST_union_union.
+    + apply TST_union_assoc.
+      assumption.
+    + assumption.
+  - apply TST_union_union.
+    + apply TST_function; assumption. 
+    + assumption. 
+Qed.
+
 
 Theorem is_subtype_trans : forall t1 t2 t3,
   t1 <: t2 ->
@@ -128,7 +185,15 @@ Proof.
   - apply TST_union_right.
     apply IHis_subtype.
     assumption.
-  - inversion H12; subst.
+  - apply TST_union_either in H12.
+    destruct H12.
+    + apply IHis_subtype1. assumption.
+    + apply IHis_subtype2. assumption.
+  - apply IHis_subtype.
+    apply TST_union_left.
+    assumption.
+  - apply IHis_subtype.
+    inversion H12; subst.
     + apply TST_union_union.
       * apply IHis_subtype1.
         constructor.
@@ -138,13 +203,28 @@ Proof.
       assumption.
     + apply IHis_subtype2.
       assumption.
-    + apply 
+    + remember (TST_merge _ _ _ H23_ H23_0) as H12t.
+    + inversion H; inversion H0; subst;
+      apply TST_union_union;
+      try apply TST_union_union;
+      try (apply IHis_subtype1; assumption);
+      try (apply IHis_subtype2; assumption);
+      try assumption.
+      * apply TST_union_union; apply TST_union_union; assumption.
+      * 
+    (* + assert (H'' : forall t', t' <: t1 \/ t' <: t2 -> t' <: t).
+      { intros. destruct H1.
+        - apply IHis_subtype1. assumption.
+        - apply IHis_subtype2. assumption.
+      }
+
+      apply H''.
     + apply TST_union_union.
       * inversion H2; subst.
         -- apply TST_union_union; assumption.
         -- apply IHis_subtype1. assumption.
         -- apply IHis_subtype2. assumption.
-        -- 
+        --  *)
   (* - apply TST_union_union
     with t1 t2 t3 t4 in H23_.
     + apply TST_union_union
