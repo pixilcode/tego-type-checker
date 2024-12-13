@@ -16,21 +16,30 @@ Reserved Notation " t '<:' t' " (at level 50).
 
 Inductive is_subtype : type -> type -> Prop :=
 | TST_refl : forall t, t <: t
-| TST_union_right : forall t t1 t2,
-  t <: t1 \/ t <: t2 ->
+| TST_union_left : forall t t1 t2,
+  t <: t1 ->
 	t <: (T_Union t1 t2)
-| TST_union_both : forall t1 t2 t3 t4,
+| TST_union_right : forall t t1 t2,
+  t <: t2 ->
+	t <: (T_Union t1 t2)
+| TST_union_union : forall t1 t2 t3 t4,
   t1 <: (T_Union t3 t4) ->
   t2 <: (T_Union t3 t4) ->
 	(T_Union t1 t2) <: (T_Union t3 t4)
+| TST_union_factor : forall t1 t2 t3 t4,
+  (T_Union t1 t2) <: (T_Union t3 t4) ->
+  t1 <: (T_Union t3 t4)
 | TST_union_assoc : forall t1 t2 t, (* added this later when I couldn't derive it *)
   (T_Union t1 t2) <: t ->
   (T_Union t2 t1) <: t
 | TST_function : forall t1 t2 t3 t4,
-	t3 <: t1 -> (* input widening *)
-	t2 <: t4 -> (* output narrowing *)
+	t3 <: t1 -> (* input widening, contravariant *)
+	t2 <: t4 -> (* output narrowing, covariant *)
 	(T_Function t1 t2) <: (T_Function t3 t4)
 where " t '<:' t' " := (is_subtype t t').
+
+(* can TST_union_both be derived? *)
+(* does assoc need to be given? *)
 
 Theorem TST_function_return : forall t t1 t2,
 	t1 <: t2 ->
@@ -52,16 +61,36 @@ Proof.
   - apply TST_refl.
 Qed.
 
-(* factoring *)
-Theorem is_subtype_union__union_left : forall t1 t2 t3 t4,
+Theorem TST_union_factor_both : forall t1 t2 t3 t4,
   (T_Union t1 t2) <: (T_Union t3 t4) ->
-  t1 <: t3 \/ t1 <: t4.
+  t1 <: (T_Union t3 t4) /\ t2 <: (T_Union t3 t4).
 Proof.
   intros.
-  induction H.
+  split.
+  - apply TST_union_factor in H.
+    assumption.
+  - apply TST_union_assoc in H.
+    apply TST_union_factor in H.
+    assumption.
+Qed.
+
+Theorem TST_union_either : forall t t1 t2,
+  t <: (T_Union t1 t2) ->
+  t <: t1 \/ t <: t2.
+Proof.
 Abort.
 
-(* associative property *)
+(* factoring (failed) *)
+Theorem is_subtype_union__union_left : forall t1 t2 t3 t4,
+  (T_Union t1 t2) <: (T_Union t3 t4) ->
+  t1 <: (T_Union t3 t4).
+Proof.
+  intros.
+  inversion H; subst.
+  - admit.
+Abort.
+
+(* associative property (failed) *)
 Theorem is_subtype_assoc : forall t1 t2 t,
   (T_Union t1 t2) <: t (* T_Union t3 t4 *) <->
   (T_Union t2 t1) <: t (* T_Union t3 t4 *).
@@ -90,19 +119,63 @@ Theorem is_subtype_trans : forall t1 t2 t3,
   t1 <: t3.
 Proof.
   intros t1 t2 t3 H12 H23.
+  generalize dependent t1.
+  induction H23; intros.
+  - assumption.
+  - apply TST_union_left.
+    apply IHis_subtype.
+    assumption.
+  - apply TST_union_right.
+    apply IHis_subtype.
+    assumption.
+  - inversion H12; subst.
+    + apply TST_union_union.
+      * apply IHis_subtype1.
+        constructor.
+      * apply IHis_subtype2.
+        constructor.
+    + apply IHis_subtype1.
+      assumption.
+    + apply IHis_subtype2.
+      assumption.
+    + apply 
+    + apply TST_union_union.
+      * inversion H2; subst.
+        -- apply TST_union_union; assumption.
+        -- apply IHis_subtype1. assumption.
+        -- apply IHis_subtype2. assumption.
+        -- 
+  (* - apply TST_union_union
+    with t1 t2 t3 t4 in H23_.
+    + apply TST_union_union
+      with t1 t2 t3 t4 in H23_0.
+    + assumption. *)
+  (* intros t1 t2 t3 H12 H23.
   generalize dependent t3.
+  induction H12.
+  - intros. assumption.
+  - intros t3 H23.
+    
+  - intros.
+    apply .  *)
+  (* generalize dependent t1.
+  induction t3. *)
+  (* generalize dependent t3.
   induction H12; subst.
   - intros. assumption.
-  - intros. 
+  - intros.
     inversion H23; subst.
+    + apply TST_union_right.
+      apply H.
+
     + constructor.
       assumption.
     + constructor.
       destruct H as [H | H].
       *  
       right.
-      admit.
-Abort.
+      admit. *)
+Qed.
 
 Example is_subtype1 : T_Int <: T_Int.
 Proof. apply TST_refl. Qed.
