@@ -7,6 +7,72 @@ Inductive type : Type :=
 | T_Union : type -> type -> type (* x | y *)
 .
 
+Definition atomic t :=
+  match t with
+  | T_Int
+  | T_Char
+  | T_Bool
+  | T_Unit => True
+  
+  | T_Function _ _
+  | T_Union _ _ => False
+  end.
+
+Definition composite t := ~(atomic t).
+
+(* added later when I realized I needed this to make subtyping work *)
+Reserved Notation " t '~=' t' " (at level 50).
+
+Inductive tequiv : type -> type -> Prop :=
+| TE_refl : forall t, t ~= t
+| TE_symm : forall t1 t2,
+  t1 ~= t2 ->
+  t2 ~= t1
+| TE_trans : forall t1 t2 t3,
+  t1 ~= t2 ->
+  t2 ~= t3 ->
+  t1 ~= t3
+| TE_union_assoc : forall t1 t2 t,
+  T_Union t1 t2 ~= t ->
+  T_Union t2 t1 ~= t
+| TE_union_comm : forall t1 t2 t3 t,
+  T_Union (T_Union t1 t2) t3 ~= t ->
+  T_Union t1 (T_Union t2 t3) ~= t
+| TE_union : forall t1 t1' t2 t2' t,
+  t1 ~= t1' ->
+  t2 ~= t2' ->
+  T_Union t1 t2 ~= t ->
+  T_Union t1' t2' ~= t
+| TE_union_merge : forall t1 t2 t,
+  t1 ~= t ->
+  t2 ~= t ->
+  T_Union t1 t2 ~= t
+| TE_function : forall t1 t1' t2 t2' t,
+  t1 ~= t1' ->
+  t2 ~= t2' ->
+  T_Function t1 t2 ~= t ->
+  T_Function t1' t2' ~= t
+where " t '~=' t' " := (tequiv t t').
+
+Example tequiv1 : T_Int ~= T_Int.
+Proof. apply TE_refl. Qed.
+
+Example tequiv2 : T_Union T_Int T_Bool ~= T_Union T_Int T_Bool.
+Proof. apply TE_refl. Qed.
+
+Example tequiv3 : T_Union T_Int T_Bool ~= T_Union T_Bool T_Int.
+Proof. apply TE_union_assoc. apply TE_refl. Qed.
+
+Example tequiv4 :
+    T_Union T_Int (T_Union T_Char T_Bool) ~=
+    T_Union (T_Union T_Int T_Char) T_Bool.
+Proof. apply TE_union_comm. apply TE_refl. Qed.
+
+Example tequiv5 : T_Int ~= (T_Union T_Int T_Int).
+Proof. apply TE_symm. apply TE_union_merge; apply TE_refl. Qed.
+
+(* TODO: use tequiv in the subtype definition *)
+
 (*
   When I chose to add T_Union, it introduced the idea of a subtype,
   so I had to define what that concept meant.
@@ -16,30 +82,92 @@ Reserved Notation " t '<:' t' " (at level 50).
 
 Inductive is_subtype : type -> type -> Prop :=
 | TST_refl : forall t, t <: t
+| TST_equiv : forall t1 t2 t3 t4,
+  t1 ~= t2 ->
+  t3 ~= t4 ->
+  t1 <: t3 ->
+  t2 <: t4
 | TST_union_left : forall t t1 t2,
   t <: t1 ->
 	t <: (T_Union t1 t2)
 | TST_union_right : forall t t1 t2,
   t <: t2 ->
 	t <: (T_Union t1 t2)
-| TST_union_union : forall t1 t2 t,
+(* | TST_union_union : forall t1 t2 t,
   t1 <: t ->
   t2 <: t ->
-  (T_Union t1 t2) <: t
+  (T_Union t1 t2) <: t *)
 | TST_union_factor : forall t1 t2 t,
   (T_Union t1 t2) <: t ->
   t1 <: t
-| TST_union_assoc : forall t1 t2 t, (* added this later when I couldn't derive it *)
-  (T_Union t1 t2) <: t ->
-  (T_Union t2 t1) <: t
 | TST_function : forall t1 t2 t3 t4,
 	t3 <: t1 -> (* input widening, contravariant *)
 	t2 <: t4 -> (* output narrowing, covariant *)
 	(T_Function t1 t2) <: (T_Function t3 t4)
 where " t '<:' t' " := (is_subtype t t').
 
+Theorem TST_atomic_subtype : forall t t',
+  atomic t' ->
+  t <: t' ->
+  t ~= t'.
+Proof.
+  intros t t' Ht'.
+  generalize dependent t.
+  destruct t';
+  destruct Ht' as [];
+  intros t Ht.
+  - inversion Ht; subst.
+    + apply TE_refl.
+    +  
+Qed.
+
+Theorem TST_equiv_left : forall t1 t2 t,
+  t1 ~= t2 ->
+  t1 <: t ->
+  t2 <: t.
+Proof.
+  intros t1 t2 t H_equiv H_sub.
+  eapply TST_equiv.
+  - apply H_equiv.
+  - apply TE_refl.
+  - apply H_sub.
+Qed.
+
+Theorem TST_equiv_right : forall t t1 t2,
+  t1 ~= t2 ->
+  t <: t1 ->
+  t <: t2.
+Proof.
+  intros t t1 t2 H_equiv H_sub.
+  eapply TST_equiv.
+  - apply TE_refl.
+  - apply H_equiv.
+  - apply H_sub.
+Qed.
+
 (* can TST_union_union be derived? *)
 (* does assoc need to be given? *)
+
+Theorem TST_union_assoc : forall t1 t2 t,
+  (T_Union t1 t2) <: t ->
+  (T_Union t2 t1) <: t.
+Proof.
+  intros t1 t2 t H.
+  eapply TST_equiv_left.
+  - apply TE_union_assoc.
+    apply TE_refl.
+  - assumption. 
+Qed.
+
+Theorem TST_union_union : forall t1 t2 t,
+  t1 <: t ->
+  t2 <: t ->
+  (T_Union t1 t2) <: t.
+Proof.
+  intros t1 t2 t Ht1 Ht2.
+  destruct t.
+  - inversion Ht1; subst.
+Qed.
 
 Theorem TST_union_union' : forall t1 t2 t3 t4,
   t1 <: (T_Union t3 t4) ->
@@ -302,7 +430,7 @@ Qed.
   that is equivalent to the "less than/equal to" operator
 *)
 
-Definition tequiv (t1 t2 : type) : Prop :=
+(* Definition tequiv (t1 t2 : type) : Prop :=
   t1 <: t2 /\ t2 <: t1.
 
 Theorem tequiv_refl : forall t, tequiv t t.
@@ -328,7 +456,7 @@ Proof.
   unfold tequiv.
   intros t1 t2 t3 [H12 H21] [H23 H32].
   split.
-Qed.
+Qed. *)
 
 (* Definition type_union (t1 t2 : type) : type :=
 	match t1, t2 with
