@@ -4,7 +4,7 @@ This project is a typechecker for the Tego programming language, implemented in 
 
 This project was done for *CS 401R: Software Foundations* at BYU. It is intended for learning and exploration rather than completion.
 
-## Features
+## Goals
 
 - **Type Inference**: Automatically determines the type of expressions.
 - **Type Checking**: Verifies that expressions match expected types.
@@ -30,25 +30,3 @@ This project was done for *CS 401R: Software Foundations* at BYU. It is intended
 2. Open the Coq files in your Coq IDE (e.g., CoqIDE or VS Code with the Coq extension).
 
 3. Step through the code to explore or verify the typechecker.
-
-### Example
-
-Here’s how the typechecker works for simple expressions:
-
-```coq
-(* Define a type environment *)
-Definition example_env : type_env := 
-  update_env empty_env [("x", T_Int); ("y", T_Bool)].
-
-(* Typecheck a literal *)
-Eval compute in (typecheck_expr (E_Literal (EV_Int 42)) example_env).
-(* Output: Some T_Int *)
-
-(* Typecheck a variable *)
-Eval compute in (typecheck_expr (E_Var "x") example_env).
-(* Output: Some T_Int *)
-
-(* Typecheck an if expression *)
-Eval compute in (typecheck_expr (E_If (E_Var "y") (E_Literal (EV_Int 1)) (E_Literal (EV_Int 0))) example_env).
-(* Output: Some T_Int *)
-```
